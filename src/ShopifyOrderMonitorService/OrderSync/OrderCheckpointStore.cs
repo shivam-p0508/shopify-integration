@@ -33,6 +33,7 @@ public sealed class OrderCheckpointStore
         try
         {
             var node = JsonNode.Parse(File.ReadAllText(path));
+            // Accept checkpoints written by the older createdAt-based sync so upgrades resume cleanly.
             var raw = node?["lastUpdatedAt"]?.GetValue<string>()
                       ?? node?["lastCreatedAt"]?.GetValue<string>();
             return raw is null ? null : DateTimeOffset.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);

@@ -31,7 +31,7 @@ public sealed class OrderFileWriter
         Directory.CreateDirectory(directory);
 
         var path = Path.Combine(directory, $"order-{OrderFields.NumericId(order)}.json");
-        if (File.Exists(path) && !_options.Overwrite && ExistingFileIsCurrent(path, order)) return false;
+        if (File.Exists(path) && !_options.Overwrite && await ExistingFileIsCurrentAsync(path, order, ct).ConfigureAwait(false)) return false;
 
         var temp = Path.Combine(directory, $".{Guid.NewGuid():N}.tmp");
         try
@@ -52,11 +52,11 @@ public sealed class OrderFileWriter
         }
     }
 
-    bool ExistingFileIsCurrent(string path, JsonObject order)
+    async Task<bool> ExistingFileIsCurrentAsync(string path, JsonObject order, CancellationToken ct)
     {
         try
         {
-            var existing = JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
+            var existing = JsonNode.Parse(await File.ReadAllTextAsync(path, ct).ConfigureAwait(false)) as JsonObject;
             if (existing is null) return false;
             return OrderFields.UpdatedAt(existing) >= OrderFields.UpdatedAt(order);
         }
