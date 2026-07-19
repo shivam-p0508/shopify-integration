@@ -56,6 +56,8 @@ public sealed class OrderCheckpointStore
             new Dictionary<string, object>
             {
                 ["lastUpdatedAt"] = mark,
+                // Keep the legacy key during rollout so an older deployment can still resume from the
+                // same checkpoint file after a downgrade.
                 ["lastCreatedAt"] = mark,
                 ["updatedAt"] = DateTimeOffset.UtcNow,
             }, Pretty);
