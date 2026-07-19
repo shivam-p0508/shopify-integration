@@ -33,7 +33,9 @@ public sealed class OrderCheckpointStore
         try
         {
             var node = JsonNode.Parse(File.ReadAllText(path));
-            var raw = node?["lastCreatedAt"]?.GetValue<string>();
+            // Accept checkpoints written by the older createdAt-based sync so upgrades resume cleanly.
+            var raw = node?["lastUpdatedAt"]?.GetValue<string>()
+                      ?? node?["lastCreatedAt"]?.GetValue<string>();
             return raw is null ? null : DateTimeOffset.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
         }
         catch (Exception ex)
@@ -52,7 +54,14 @@ public sealed class OrderCheckpointStore
         Directory.CreateDirectory(directory);
 
         var json = JsonSerializer.Serialize(
-            new Dictionary<string, object> { ["lastCreatedAt"] = mark, ["updatedAt"] = DateTimeOffset.UtcNow }, Pretty);
+            new Dictionary<string, object>
+            {
+                ["lastUpdatedAt"] = mark,
+                // Keep the legacy key during rollout so an older deployment can still resume from the
+                // same checkpoint file after a downgrade.
+                ["lastCreatedAt"] = mark,
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+            }, Pretty);
 
         var temp = Path.Combine(directory, $".{Guid.NewGuid():N}.tmp");
         try

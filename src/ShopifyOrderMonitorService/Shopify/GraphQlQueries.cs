@@ -3,12 +3,12 @@ namespace ShopifyOrderMonitorService.Shopify;
 /// <summary>The GraphQL documents used to read orders and their line items.</summary>
 static class GraphQlQueries
 {
-    // sortKey: CREATED_AT is load-bearing. The connection's default is PROCESSED_AT, and Shopify's
+    // sortKey: UPDATED_AT is load-bearing. The connection's default is PROCESSED_AT, and Shopify's
     // guidance is to sort by the field you filter on; a mismatch is slow or fails. Ascending order
-    // also guarantees each page's newest createdAt only moves forward, so progress can be saved per page.
+    // also guarantees each page's newest updatedAt only moves forward, so progress can be saved per page.
     public const string OrdersPage = """
-        query NewOrdersPage($filter: String!, $first: Int!, $after: String, $lineItemsFirst: Int!, $shippingLinesFirst: Int!) {
-          orders(first: $first, after: $after, query: $filter, sortKey: CREATED_AT, reverse: false) {
+        query OrdersPage($filter: String!, $first: Int!, $after: String, $lineItemsFirst: Int!, $shippingLinesFirst: Int!) {
+          orders(first: $first, after: $after, query: $filter, sortKey: UPDATED_AT, reverse: false) {
             pageInfo { hasNextPage endCursor }
             nodes {
               id
