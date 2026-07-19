@@ -8,8 +8,8 @@ using ShopifyOrderMonitorService.Shopify;
 namespace ShopifyOrderMonitorService.OrderSync;
 
 /// <summary>
-/// Reads new orders from Shopify, writes one JSON file per order, and remembers how far it got
-/// so a restart resumes rather than re-downloading everything.
+/// Reads recently updated orders from Shopify, writes one JSON file per order, and remembers how
+/// far it got so a restart resumes rather than re-downloading everything.
 /// </summary>
 public sealed class OrderSyncEngine
 {
@@ -38,8 +38,8 @@ public sealed class OrderSyncEngine
     {
         var checkpoint = _checkpoints.Load();
 
-        // First run reaches back InitialLookback. After that, start a little BEFORE the last order we
-        // saw — see BuildFilter for why that overlap is what keeps this correct.
+        // First run reaches back InitialLookback. After that, start a little BEFORE the latest order
+        // update we saw — see BuildFilter for why that overlap is what keeps this correct.
         var since = checkpoint is { } last
             ? last - _options.Overlap
             : DateTimeOffset.UtcNow - _options.InitialLookback;
@@ -65,8 +65,8 @@ public sealed class OrderSyncEngine
                 if (await _writer.WriteAsync(order, ct).ConfigureAwait(false))
                 {
                     written++;
-                    _logger.LogInformation("Captured {Name} ({NumericId}) created {CreatedAt:u}.",
-                        OrderFields.NameOf(order), OrderFields.NumericId(order), OrderFields.CreatedAt(order));
+                    _logger.LogInformation("Synced {Name} ({NumericId}) updated {UpdatedAt:u}.",
+                        OrderFields.NameOf(order), OrderFields.NumericId(order), OrderFields.UpdatedAt(order));
                 }
                 else
                 {
@@ -74,13 +74,14 @@ public sealed class OrderSyncEngine
                 }
 
                 matched++;
-                var createdAt = OrderFields.CreatedAt(order);
-                if (highWaterMark is null || createdAt > highWaterMark) highWaterMark = createdAt;
+                var updatedAt = OrderFields.UpdatedAt(order);
+                if (highWaterMark is null || updatedAt > highWaterMark) highWaterMark = updatedAt;
             }
 
-            // Save progress after each page. Results are sorted oldest-first, so the mark only moves
-            // forward; the files for this page are already on disk; and re-writing is a no-op. So a
-            // crash costs at most one page of re-reads and can never lose an order.
+            // Save progress after each page. Results are sorted oldest-first by updatedAt, so the mark
+            // only moves forward; the files for this page are already on disk; and unchanged overlap
+            // re-reads are a no-op. So a crash costs at most one page of re-reads and can never lose
+            // an update.
             if (highWaterMark is { } mark && mark != checkpoint)
             {
                 _checkpoints.Save(mark);
@@ -93,7 +94,7 @@ public sealed class OrderSyncEngine
         while (hasNextPage && !ct.IsCancellationRequested);
 
         _logger.LogInformation(
-            "Cycle finished: {Matched} order(s) matched, {Written} new file(s), {Skipped} already captured. Watermark now {Watermark:u}.",
+            "Cycle finished: {Matched} order(s) matched, {Written} file(s) written, {Skipped} unchanged file(s) skipped. Watermark now {Watermark:u}.",
             matched, written, skipped, highWaterMark);
     }
 
@@ -109,7 +110,7 @@ public sealed class OrderSyncEngine
             ["shippingLinesFirst"] = _options.ShippingLinesPageSize,
         };
 
-        var data = await _shopify.QueryAsync(GraphQlQueries.OrdersPage, "NewOrdersPage", variables, ct).ConfigureAwait(false);
+        var data = await _shopify.QueryAsync(GraphQlQueries.OrdersPage, "OrdersPage", variables, ct).ConfigureAwait(false);
         var connection = data["orders"] ?? throw new InvalidOperationException("The orders query returned no orders connection.");
 
         var orders = new List<JsonObject>();
@@ -173,12 +174,12 @@ public sealed class OrderSyncEngine
         }
     }
 
-    // ">=" plus the overlap subtracted upstream means the boundary order is re-read, not risked.
+    // ">=" plus the overlap subtracted upstream means the boundary update is re-read, not risked.
     // The timestamp is quoted because it contains colons, which the search syntax treats as separators.
     string BuildFilter(DateTimeOffset since)
     {
         var timestamp = since.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-        var filter = $"created_at:>='{timestamp}'";
+        var filter = $"updated_at:>='{timestamp}'";
         if (!string.IsNullOrWhiteSpace(_options.AdditionalFilter))
             filter = $"{filter} AND ({_options.AdditionalFilter!.Trim()})";
         return filter;

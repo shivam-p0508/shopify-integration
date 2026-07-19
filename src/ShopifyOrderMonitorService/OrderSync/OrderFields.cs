@@ -30,6 +30,13 @@ static class OrderFields
         return DateTimeOffset.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
     }
 
+    public static DateTimeOffset UpdatedAt(JsonObject order)
+    {
+        var raw = order["updatedAt"]?.GetValue<string>()
+                  ?? throw new InvalidOperationException($"Order {GlobalId(order)} has no updatedAt.");
+        return DateTimeOffset.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+    }
+
     static string? ReadString(JsonNode? node)
     {
         if (node is not JsonValue value) return null;

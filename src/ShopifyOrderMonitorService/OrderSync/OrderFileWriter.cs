@@ -22,7 +22,7 @@ public sealed class OrderFileWriter
     }
 
     // Written atomically (temp file, then rename) so a watcher never sees a half-written order, and
-    // idempotently (skip if it already exists) so the overlap re-scan is free of side effects.
+    // idempotently (skip if the stored copy is already current) so the overlap re-scan is free of side effects.
     public async Task<bool> WriteAsync(JsonObject order, CancellationToken ct)
     {
         var directory = _options.PartitionByDate
@@ -31,7 +31,7 @@ public sealed class OrderFileWriter
         Directory.CreateDirectory(directory);
 
         var path = Path.Combine(directory, $"order-{OrderFields.NumericId(order)}.json");
-        if (File.Exists(path) && !_options.Overwrite) return false;
+        if (File.Exists(path) && !_options.Overwrite && ExistingFileIsCurrent(path, order)) return false;
 
         var temp = Path.Combine(directory, $".{Guid.NewGuid():N}.tmp");
         try
@@ -49,6 +49,21 @@ public sealed class OrderFileWriter
         {
             FileHelpers.TryDelete(_logger, temp);
             throw;
+        }
+    }
+
+    bool ExistingFileIsCurrent(string path, JsonObject order)
+    {
+        try
+        {
+            var existing = JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
+            if (existing is null) return false;
+            return OrderFields.UpdatedAt(existing) >= OrderFields.UpdatedAt(order);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not compare existing order file {Path}; rewriting it.", path);
+            return false;
         }
     }
 }

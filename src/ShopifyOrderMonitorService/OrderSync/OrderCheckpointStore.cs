@@ -33,7 +33,8 @@ public sealed class OrderCheckpointStore
         try
         {
             var node = JsonNode.Parse(File.ReadAllText(path));
-            var raw = node?["lastCreatedAt"]?.GetValue<string>();
+            var raw = node?["lastUpdatedAt"]?.GetValue<string>()
+                      ?? node?["lastCreatedAt"]?.GetValue<string>();
             return raw is null ? null : DateTimeOffset.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
         }
         catch (Exception ex)
@@ -52,7 +53,12 @@ public sealed class OrderCheckpointStore
         Directory.CreateDirectory(directory);
 
         var json = JsonSerializer.Serialize(
-            new Dictionary<string, object> { ["lastCreatedAt"] = mark, ["updatedAt"] = DateTimeOffset.UtcNow }, Pretty);
+            new Dictionary<string, object>
+            {
+                ["lastUpdatedAt"] = mark,
+                ["lastCreatedAt"] = mark,
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+            }, Pretty);
 
         var temp = Path.Combine(directory, $".{Guid.NewGuid():N}.tmp");
         try

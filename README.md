@@ -20,8 +20,9 @@ dotnet run --project src/ShopifyOrderMonitorService/ShopifyOrderMonitorService.c
 ```
 
 The worker polls the Shopify Admin GraphQL API on a configurable interval and writes one JSON
-file per order under the configured output directory. It remembers where it got to via a
-checkpoint file, so restarting is safe.
+file per order under the configured output directory. It tracks recently updated orders so later
+fulfillment-status changes are re-synced, and it remembers where it got to via a checkpoint file,
+so restarting is safe.
 
 ### Configure
 
