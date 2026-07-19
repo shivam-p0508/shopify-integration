@@ -65,7 +65,7 @@ public sealed class OrderSyncEngine
                 if (await _writer.WriteAsync(order, ct).ConfigureAwait(false))
                 {
                     written++;
-                    _logger.LogInformation("Synced {Name} ({NumericId}) updated {UpdatedAt:u}.",
+                    _logger.LogInformation("Wrote {Name} ({NumericId}) updated {UpdatedAt:u}.",
                         OrderFields.NameOf(order), OrderFields.NumericId(order), OrderFields.UpdatedAt(order));
                 }
                 else
