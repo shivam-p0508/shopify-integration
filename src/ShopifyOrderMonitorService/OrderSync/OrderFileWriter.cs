@@ -31,7 +31,10 @@ public sealed class OrderFileWriter
         Directory.CreateDirectory(directory);
 
         var path = Path.Combine(directory, $"order-{OrderFields.NumericId(order)}.json");
-        if (File.Exists(path) && !_options.Overwrite && await ExistingFileIsCurrentAsync(path, order, ct).ConfigureAwait(false)) return false;
+        var shouldSkipWrite = File.Exists(path)
+                              && !_options.Overwrite
+                              && await ExistingFileIsCurrentAsync(path, order, ct).ConfigureAwait(false);
+        if (shouldSkipWrite) return false;
 
         var temp = Path.Combine(directory, $".{Guid.NewGuid():N}.tmp");
         try
@@ -57,7 +60,11 @@ public sealed class OrderFileWriter
         try
         {
             var existing = JsonNode.Parse(await File.ReadAllTextAsync(path, ct).ConfigureAwait(false)) as JsonObject;
-            if (existing is null) return false;
+            if (existing is null)
+            {
+                _logger.LogWarning("Existing order file {Path} did not contain a JSON object; rewriting it.", path);
+                return false;
+            }
             return OrderFields.UpdatedAt(existing) >= OrderFields.UpdatedAt(order);
         }
         catch (Exception ex)
